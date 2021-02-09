@@ -1,2 +1,2 @@
-# hydro_flux_splitting
+# Hydro Flux Splitting
 clemson-cal hack project
