@@ -82,7 +82,7 @@ pub fn flux_split(u: Vec<Conserved>, dx: f64, dt: f64) -> Vec<Conserved> {
         let flux_cor_term = max_lambda * ( u[i-1] - 2.0 * u[i] + u[i+1] );
 
         // u1[i] = u[i] - ( dt / dx ) * ( fr - fl );
-        u1[i] = u[i] - ( dt / dx ) * ( fr - fl - flux_cor_term );
+        u1[i] = u[i] - 0.5 * ( dt / dx ) * ( fr - fl - flux_cor_term );
     }
 
     // Update boundaries.
