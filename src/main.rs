@@ -1,4 +1,3 @@
-pub mod burgers;
 pub mod flux_split;
 
 use std::io::Write;
