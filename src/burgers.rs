@@ -1,7 +1,7 @@
 // Burgers' equations solver.
-// Author: Dr. Jonathan Zrake 2021.
+// Author: Jonathan Zrake 2021.
 
-pub(crate) fn next(u: Vec<f64>, dx: f64, dt: f64) -> Vec<f64> {
+pub fn upwind(u: Vec<f64>, dx: f64, dt: f64) -> Vec<f64> {
     let n = u.len();
     let mut u1 = vec![0.0; n];
 
