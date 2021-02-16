@@ -13,7 +13,7 @@ impl Conserved {
     pub fn momentum(self) -> f64 { self.1 }
     pub fn velocity(self) -> f64 { self.momentum() / self.density() }
     pub fn to_primitive (self) -> Primitive {
-        Primitive(self.0, self.velocity())
+        Primitive(self.density(), self.velocity())
     }
 }
 
@@ -39,10 +39,15 @@ impl Primitive {
     pub fn eigen_val_minus (self) -> f64 {
         self.velocity() - self.sound_speed()
     }
+
+    pub fn max_eigen_val (self) -> f64 {
+        self.eigen_val_plus().abs().max(self.eigen_val_minus().abs())
+    }
 }
 
 
 // ============================================================================
+// derive_more crate.
 
 impl std::ops::Add<Conserved> for Conserved { type Output = Self; fn add(self, u: Conserved) -> Conserved { Conserved(self.0 + u.0, self.1 + u.1) } }
 impl std::ops::Sub<Conserved> for Conserved { type Output = Self; fn sub(self, u: Conserved) -> Conserved { Conserved(self.0 - u.0, self.1 - u.1) } }
@@ -57,17 +62,9 @@ pub fn flux_split(u: Vec<Conserved>, dx: f64, dt: f64) -> Vec<Conserved> {
     let n = u.len();
     let mut u1 = vec![Conserved(0.0, 0.0); n];
 
-    // Finding maximum absolute value of eigenvalues.
-    let mut vec_lambdas = vec![];
-    for j in 0..n {
-        vec_lambdas.push(u[j].to_primitive().eigen_val_minus().abs());
-        vec_lambdas.push(u[j].to_primitive().eigen_val_plus().abs());
-    }
-    let mut max_lambda: f64 = 0.0;
-    for k in vec_lambdas {
-        if k > max_lambda {
-            max_lambda = k;
-        }
+    let mut max_lambda = 0.0;
+    for lambda in u.iter().map(|u| u.to_primitive().max_eigen_val()) {
+        max_lambda = lambda.max(max_lambda);
     }
 
     if ( dx / dt ) < max_lambda {
