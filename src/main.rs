@@ -1,8 +1,7 @@
 pub mod flux_split;
 
-use std::io::Write;
-use std::fs;
-pub use crate::flux_split::{Conserved, Primitive, flux_split};
+use std::{io::Write, fs};
+use crate::flux_split::*;
 
 
 fn main() {
@@ -24,6 +23,6 @@ fn main() {
     let file = fs::File::create("solution.dat").unwrap();
 
     for (x, u) in x.zip(u) {
-        writeln!(&file, "{:.6} {:.6} {:.6}", x, u.get_density(), u.get_momentum()).unwrap();
+        writeln!(&file, "{:.6} {:.6} {:.6}", x, u.density(), u.momentum()).unwrap();
     }
 }
