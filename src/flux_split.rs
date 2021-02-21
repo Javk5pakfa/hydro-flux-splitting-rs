@@ -3,25 +3,24 @@
 
 
 /**
- * Conserved hydrodynamic quantities: density, momentum
+ * Conserved hydrodynamic quantities: density, momentum, entropy density
  */
 #[derive(Copy, Clone)]
-pub struct Conserved(pub f64, pub f64);
+pub struct Conserved(pub f64, pub f64, pub f64);
 
 
 
 
 /**
- * Primitive hydrodynamic quantities: density, velocity
+ * Primitive hydrodynamic quantities: density, velocity, specific internal energy
  */
 #[derive(Copy, Clone)]
-pub struct Primitive(pub f64, pub f64);
+pub struct Primitive(pub f64, pub f64, pub f64);
 
 
 
 
 // ============================================================================
-pub static KAPPA: f64 = 1.0;
 pub static GAMMA_LAW_INDEX: f64 = 5.0 / 3.0;
 
 
@@ -38,12 +37,20 @@ impl Conserved {
         self.1
     }
 
+    pub fn entropy_density(self) -> f64 {
+        self.2
+    }
+
     pub fn velocity(self) -> f64 {
         self.momentum() / self.density()
     }
 
+    pub fn specific_internal_energy(self) -> f64 {
+        self.2 / self.0.powf(2.0 - GAMMA_LAW_INDEX) 
+    }
+
     pub fn to_primitive(self) -> Primitive {
-        Primitive(self.density(), self.velocity())
+        Primitive(self.density(), self.velocity(), self.specific_internal_energy())
     }
 }
 
@@ -61,22 +68,32 @@ impl Primitive {
         self.1
     }
 
+    pub fn specific_internal_energy(self) -> f64 {
+        self.2
+    }
+
     pub fn to_conserved(self) -> Conserved {
-        Conserved(self.density(), self.density() * self.velocity())
+        Conserved(self.density(), self.density() * self.velocity(), self.density() * self.specific_internal_energy() * self.density().powf(1.0 - GAMMA_LAW_INDEX) )
     }
 
     pub fn get_fluxes(self) -> Conserved {
-        let momentum = self.density() * self.velocity();
-        let energy = momentum.powi(2) + KAPPA * self.density().powf(GAMMA_LAW_INDEX);
-        Conserved(momentum, energy)
+        let mass_flux     = self.density() * self.velocity();
+        let momentum_flux = self.density() * self.velocity().powi(2) + self.density() * self.specific_internal_energy() * (GAMMA_LAW_INDEX - 1.0);
+        let entropy_flux  = self.to_conserved().entropy_density() * self.velocity();
+        Conserved(mass_flux, momentum_flux, entropy_flux)
     }
 
     pub fn sound_speed(self) -> f64 {
-        (KAPPA * GAMMA_LAW_INDEX * self.density().powf(GAMMA_LAW_INDEX - 1.0)).sqrt()
+        let pressure = self.density() * self.specific_internal_energy() * (GAMMA_LAW_INDEX - 1.0);
+        ( GAMMA_LAW_INDEX * pressure / self.density()).sqrt()
     }
 
     pub fn eigenval_plus(self) -> f64 {
         self.velocity() + self.sound_speed()
+    }
+
+    pub fn eigenval_0(self) -> f64 {
+        self.velocity()
     }
 
     pub fn eigenval_minus(self) -> f64 {
@@ -84,7 +101,7 @@ impl Primitive {
     }
 
     pub fn max_eigenval(self) -> f64 {
-        self.eigenval_plus().abs().max(self.eigenval_minus().abs())
+        self.eigenval_plus().abs().max(self.eigenval_minus().abs()).max(self.eigenval_0().abs())
     }
 }
 
@@ -95,11 +112,11 @@ impl Primitive {
 // crate.
 
 // ============================================================================
-impl std::ops::Add<Conserved> for Conserved { type Output = Self; fn add(self, u: Conserved) -> Conserved { Conserved(self.0 + u.0, self.1 + u.1) } }
-impl std::ops::Sub<Conserved> for Conserved { type Output = Self; fn sub(self, u: Conserved) -> Conserved { Conserved(self.0 - u.0, self.1 - u.1) } }
-impl std::ops::Mul<Conserved> for f64 { type Output = Conserved; fn mul(self, u: Conserved) -> Conserved { Conserved(self * u.0, self * u.1) } }
-impl std::ops::Mul<f64> for Conserved { type Output = Conserved; fn mul(self, a: f64) -> Conserved { Conserved(self.0 * a, self.1 * a) } }
-impl std::ops::Div<f64> for Conserved { type Output = Conserved; fn div(self, a: f64) -> Conserved { Conserved(self.0 / a, self.1 / a) } }
+impl std::ops::Add<Conserved> for Conserved { type Output = Self; fn add(self, u: Conserved) -> Conserved { Conserved(self.0 + u.0, self.1 + u.1, self.2 + u.2) } }
+impl std::ops::Sub<Conserved> for Conserved { type Output = Self; fn sub(self, u: Conserved) -> Conserved { Conserved(self.0 - u.0, self.1 - u.1, self.2 - u.2) } }
+impl std::ops::Mul<Conserved> for f64 { type Output = Conserved; fn mul(self, u: Conserved) -> Conserved { Conserved(self * u.0, self * u.1, self * u.2) } }
+impl std::ops::Mul<f64> for Conserved { type Output = Conserved; fn mul(self, a: f64) -> Conserved { Conserved(self.0 * a, self.1 * a, self.2 * a) } }
+impl std::ops::Div<f64> for Conserved { type Output = Conserved; fn div(self, a: f64) -> Conserved { Conserved(self.0 / a, self.1 / a, self.2 / a) } }
 
 
 
@@ -113,12 +130,12 @@ pub fn flux_split(u: Vec<Conserved>, dx: f64, dt: f64) -> Vec<Conserved> {
         panic!("dx/dt too small!")
     }
 
-    let mut u1 = vec![Conserved(0.0, 0.0); n];
+    let mut u1 = vec![Conserved(0.0, 0.0, 0.0); n];
 
     // Update interior cells.
     for i in 1..n-1 {
         let prim_right = u[i+1].to_primitive();
-        let prim_left = u[i-1].to_primitive();
+        let prim_left  = u[i-1].to_primitive();
         let fr = prim_right.get_fluxes();
         let fl = prim_left.get_fluxes();
         let flux_cor_term = max_lambda * (u[i-1] - 2.0 * u[i] + u[i+1]);
@@ -127,7 +144,7 @@ pub fn flux_split(u: Vec<Conserved>, dx: f64, dt: f64) -> Vec<Conserved> {
     }
 
     // Update boundaries.
-    u1[0] = u[0];
+    u1[0]   = u[0];
     u1[n-1] = u[n-1];
     u1
 }

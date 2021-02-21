@@ -3,14 +3,22 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-data = np.loadtxt("solution.dat")
+data = np.loadtxt("src/solution.dat")
 
 print(np.shape(data))
 
 x = data[:, 0]
 rho = data[:, 1]
-mom = data[:, 2]
+v   = data[:, 2]
+eps = data[:, 3]
 
-plt.plot(x, rho, ".")
-plt.plot(x, rho)
+plt.subplots(131)
+plt.plot(x, rho, "-")
+
+plt.subplots(132)
+plt.plot(x, v, "-")
+
+plt.subplots(133)
+plt.plot(x, eps, "-")
+
 plt.show()
