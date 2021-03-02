@@ -1,8 +1,8 @@
-pub mod flux_split;
+pub mod scheme;
 
 
 use std::{io::Write, fs};
-use crate::flux_split::*;
+use crate::scheme::*;
 
 #[allow(dead_code)]
 enum Setup {
@@ -14,12 +14,13 @@ enum Setup {
 
 fn main() {
 
-    let setup = Setup::Cavitation;
-    let tfinal = 0.1;
+    let setup = Setup::SquareWave;
     let num_cells = 1000;
 
     let dx = 1.0 / num_cells as f64;
     let dt = dx * 0.1;
+
+    let tfinal = 0.1;
     
     let x = (0..num_cells).map(|i| -0.5 + (i as f64 + 0.5) * dx);
     let mut t = 0.0;
@@ -47,7 +48,7 @@ fn main() {
     };
 
     while t < tfinal {
-        u = flux_split(u, dx, dt);
+        u = hll_solver(u, dx, dt);
         t += dt;
         println!("t = {}", t);
     }

@@ -103,6 +103,16 @@ impl Primitive {
     pub fn max_eigenval(self) -> f64 {
         self.eigenval_plus().abs().max(self.eigenval_minus().abs()).max(self.eigenval_0().abs())
     }
+
+    pub fn max_eigenval_signed(self) -> f64 {
+        self.eigenval_plus().max(self.eigenval_minus()).max(self.eigenval_0())
+
+    }
+
+    pub fn min_eigenval_signed(self) -> f64 {
+        self.eigenval_plus().min(self.eigenval_minus()).min(self.eigenval_0())
+
+    }
 }
 
 
@@ -148,3 +158,62 @@ pub fn flux_split(u: Vec<Conserved>, dx: f64, dt: f64) -> Vec<Conserved> {
     u1[n-1] = u[n-1];
     u1
 }
+
+// ============================================================================
+pub fn hll_solver(u: Vec<Conserved>, dx: f64, dt: f64) -> Vec<Conserved> {
+    let n = u.len();
+    let max_lambda: f64 = u.iter().map(|u| u.to_primitive().max_eigenval()).fold(0.0, |a, b| a.max(b));
+
+    if dx / dt < max_lambda {
+        panic!("dx/dt too small!")
+    }
+
+    let mut u1 = vec![Conserved(0.0, 0.0, 0.0); n];
+
+    // Update interior cells.
+    for i in 1..n-1 {
+        let prim_right_iph = u[i+1].to_primitive();
+        let prim_left_iph = u[i].to_primitive();
+        let prim_right_imh = u[i].to_primitive();
+        let prim_left_imh = u[i-1].to_primitive();
+
+        let fr_iph = prim_right_iph.get_fluxes();
+        let fl_iph = prim_left_iph.get_fluxes();
+        let fr_imh = prim_right_imh.get_fluxes();
+        let fl_imh = prim_left_imh.get_fluxes();
+
+        let ur_iph = u[i+1];
+        let ul_iph = u[i];
+        let ur_imh = u[i];
+        let ul_imh = u[i-i];
+
+        // Characteristic speeds for iph.
+        let sr_p_iph = prim_right_iph.max_eigenval_signed();
+        let sl_p_iph = prim_left_iph.max_eigenval_signed();
+        let sr_m_iph = prim_right_iph.min_eigenval_signed();
+        let sl_m_iph = prim_left_iph.min_eigenval_signed();
+
+        let alpha_p_iph = sr_p_iph.max(sl_p_iph.max(0.0));
+        let alpha_m_iph = sr_m_iph.min(sl_m_iph.min(0.0));
+
+        // Characteristic speeds for imh.
+        let sr_p_imh = prim_right_imh.max_eigenval_signed();
+        let sl_p_imh = prim_left_imh.max_eigenval_signed();
+        let sr_m_imh = prim_right_imh.min_eigenval_signed();
+        let sl_m_imh = prim_left_imh.min_eigenval_signed();
+
+        let alpha_p_imh = sr_p_imh.max(sl_p_imh.max(0.0));
+        let alpha_m_imh = sr_m_imh.min(sl_m_imh.min(0.0));
+
+        // FHLL.
+        let fhll_iph = ( alpha_p_iph * fl_iph - alpha_m_iph * fr_iph + alpha_p_iph * alpha_m_iph * ( ur_iph - ul_iph )) / ( alpha_p_iph - alpha_m_iph );
+        let fhll_imh = ( alpha_p_imh * fl_imh - alpha_m_imh * fr_imh + alpha_p_imh * alpha_m_imh * ( ur_imh - ul_imh )) / ( alpha_p_imh - alpha_m_imh );
+
+        u1[i] = u[i] - (dt / dx) * (fhll_iph - fhll_imh);
+    }
+
+    u1[0]   = u[0];
+    u1[n-1] = u[n-1];
+    u1
+}
+
