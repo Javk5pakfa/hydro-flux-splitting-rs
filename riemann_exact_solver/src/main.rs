@@ -39,7 +39,7 @@ impl Conserved {
     }
 
     pub fn specific_internal_energy(self) -> f64 {
-        (self.energy_density() - (0.5) * self.density() * self.velocity().powf(2.0)) / self.density()
+        (self.energy_density() - (0.5) * self.density() * self.velocity().powi(2)) / self.density()
     }
 
     pub fn pressure(self) -> f64 {
@@ -74,13 +74,13 @@ impl Primitive {
     }
 
     pub fn to_conserved(self) -> Conserved {
-        Conserved(self.density(), self.density() * self.velocity(), self.density() * self.specific_internal_energy() + 0.5 * self.density() * self.velocity().powf(2.0))
+        Conserved(self.density(), self.density() * self.velocity(), self.density() * self.specific_internal_energy() + 0.5 * self.density() * self.velocity().powi(2))
     }
 
     pub fn get_fluxes(self) -> Conserved {
         let mass_flux     = self.density() * self.velocity();
         let momentum_flux = self.density() * self.velocity().powi(2) + self.pressure();
-        let energy_flux  = (self.density() * self.specific_internal_energy() + 0.5 * self.density() * self.velocity().powf(2.0) + self.pressure()) * self.velocity();
+        let energy_flux  = (self.density() * self.specific_internal_energy() + 0.5 * self.density() * self.velocity().powi(2) + self.pressure()) * self.velocity();
         Conserved(mass_flux, momentum_flux, energy_flux)
     }
 
@@ -118,15 +118,16 @@ pub fn f_pstar(pl: Primitive, pr: Primitive, pres: f64) -> f64 {
 // Eqn 4.6/4.7 of Toro (2009).
 fn faux(prim: Primitive, pres_guess: f64) -> f64 {
     // Eqn 4.8 of Toro (2009).
-    let ak = 2.0 / ( ( GAMMA_LAW_INDEX + 1.0 ) * prim.density() );
-    let bk = ( prim.pressure() ) * ( GAMMA_LAW_INDEX - 1.0 ) / ( GAMMA_LAW_INDEX + 1.0 );
+    let ak = 2.0 / ( GAMMA_LAW_INDEX + 1.0 ) / prim.density();
+    let bk = prim.pressure() * ( GAMMA_LAW_INDEX - 1.0 ) / ( GAMMA_LAW_INDEX + 1.0 );
 
     if pres_guess > prim.pressure() {
         // Shock.
         ( pres_guess - prim.pressure() ) * ( ak / ( pres_guess + bk ) ).powf(0.5)
     } else {
         // Rarefaction.
-        ( 2.0 * ak ) / ( GAMMA_LAW_INDEX - 1.0 ) * ( ( pres_guess / prim.pressure() ).powf((GAMMA_LAW_INDEX - 1.0) / (2.0 * GAMMA_LAW_INDEX)) - 1.0 )
+        // Ryan: had ak instead of (sound speed)_k
+        ( 2.0 * prim.sound_speed() ) / ( GAMMA_LAW_INDEX - 1.0 ) * ( ( pres_guess / prim.pressure() ).powf((GAMMA_LAW_INDEX - 1.0) / (2.0 * GAMMA_LAW_INDEX)) - 1.0 )
     }
 }
 
@@ -148,7 +149,7 @@ pub fn rho_star_left(pl: Primitive, pstar: f64) -> f64 {
 
 // Eqn 4.57 of Toro (2009).
 pub fn rho_star_right(pr: Primitive, pstar: f64) -> f64 {
-    pr.density() * ( ( pstar / pr.pressure() + ( ( GAMMA_LAW_INDEX - 1.0 ) / ( GAMMA_LAW_INDEX + 1.0 ) ) ) / ( ( ( GAMMA_LAW_INDEX - 1.0 ) / ( GAMMA_LAW_INDEX + 1.0 ) ) * pstar / pr.pressure() + 1.0 ) )
+    pr.density() * ( pstar / pr.pressure() + ( GAMMA_LAW_INDEX - 1.0 ) / ( GAMMA_LAW_INDEX + 1.0 ) ) / ( ( GAMMA_LAW_INDEX - 1.0 ) / ( GAMMA_LAW_INDEX + 1.0 ) * pstar / pr.pressure() + 1.0 )
 }
 
 
@@ -164,9 +165,9 @@ pub fn shockwave_speed(pr: Primitive, pstar_r: Primitive) -> f64 {
 // ============================================================================
 
 
-
+// Eq. 4.56: Ryan: had some sign errors in this function
 fn rarefaction_state(pl: Primitive, x: f64, t: f64) -> Primitive {
-    let r_density = pl.density() * ( 2.0 / (GAMMA_LAW_INDEX - 1.0) + (GAMMA_LAW_INDEX - 1.0) / ((GAMMA_LAW_INDEX + 1.0) * pl.sound_speed()) * (pl.velocity() - x/t) ).powf(2.0 / (GAMMA_LAW_INDEX - 1.0));
+    let r_density = pl.density() * ( 2.0 / (GAMMA_LAW_INDEX + 1.0) + (GAMMA_LAW_INDEX - 1.0) / ((GAMMA_LAW_INDEX + 1.0) * pl.sound_speed()) * (pl.velocity() - x/t) ).powf(2.0 / (GAMMA_LAW_INDEX - 1.0));
     let r_velocity = 2.0 / (GAMMA_LAW_INDEX + 1.0) * ( pl.sound_speed() + (GAMMA_LAW_INDEX - 1.0) / 2.0 * pl.velocity() + x/t );
     let r_pressure = pl.pressure() * ( 2.0 / (GAMMA_LAW_INDEX + 1.0) + (GAMMA_LAW_INDEX - 1.0) / ((GAMMA_LAW_INDEX + 1.0) * pl.sound_speed()) * ( pl.velocity() - x/t ) ).powf(2.0 * GAMMA_LAW_INDEX / ( GAMMA_LAW_INDEX - 1.0 ));
 
