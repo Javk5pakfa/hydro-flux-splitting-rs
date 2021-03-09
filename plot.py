@@ -3,7 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-data = np.loadtxt("solution.dat")
+data = np.loadtxt("riemann_exact_solver/solution.dat")
 
 print(np.shape(data))
 
