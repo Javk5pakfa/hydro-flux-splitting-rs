@@ -10,3 +10,5 @@ Cargo.lock
 **/*.rs.bk
 .idea
 *.dat
+*.pdf
+riemann_exact_solver/target
