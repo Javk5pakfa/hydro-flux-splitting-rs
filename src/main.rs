@@ -1,5 +1,4 @@
 pub mod scheme;
-pub mod riemann_exact_solver;
 
 use std::{io::Write, fs};
 use crate::scheme::*;
