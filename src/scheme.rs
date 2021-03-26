@@ -54,7 +54,7 @@ impl Conserved {
     }
 
     pub fn passive_scalar(self) -> f64 {
-        self.3 / self.0
+        self.passive_scalar_density() / self.density()
     }
 
     pub fn to_primitive(self) -> Primitive {
@@ -189,41 +189,38 @@ pub fn hll_solver(u: Vec<Conserved>, dx: f64, dt: f64) -> Vec<Conserved> {
     // Update interior cells.
     for i in 1..n-1 {
         let pr_iph = u[i+1].to_primitive();
-        let pl_iph = u[i  ].to_primitive();
-        let pr_imh = u[i  ].to_primitive();
+        let p_mid = u[i  ].to_primitive();
         let pl_imh = u[i-1].to_primitive();
 
         let fr_iph = pr_iph.get_fluxes();
-        let fl_iph = pl_iph.get_fluxes();
-        let fr_imh = pr_imh.get_fluxes();
+        let f_mid = p_mid.get_fluxes();
         let fl_imh = pl_imh.get_fluxes();
 
         let ur_iph = u[i+1];
-        let ul_iph = u[i  ];
-        let ur_imh = u[i  ];
+        let u_mid = u[i  ];
         let ul_imh = u[i-1]; //had [i-i] here
 
         // Characteristic speeds for iph.
         let sr_premax_iph = pr_iph.max_eigenval_signed();
-        let sl_premax_iph = pl_iph.max_eigenval_signed();
+        let sl_premax_iph = p_mid.max_eigenval_signed();
         let sr_premin_iph = pr_iph.min_eigenval_signed();
-        let sl_premin_iph = pl_iph.min_eigenval_signed();
+        let sl_premin_iph = p_mid.min_eigenval_signed();
 
         let sr_iph = sr_premax_iph.max(sl_premax_iph.max(0.0));
         let sl_iph = sr_premin_iph.min(sl_premin_iph.min(0.0));
 
         // Characteristic speeds for imh.
-        let sr_premax_imh = pr_imh.max_eigenval_signed();
+        let sr_premax_imh = p_mid.max_eigenval_signed();
         let sl_premax_imh = pl_imh.max_eigenval_signed();
-        let sr_premin_imh = pr_imh.min_eigenval_signed();
+        let sr_premin_imh = p_mid.min_eigenval_signed();
         let sl_premin_imh = pl_imh.min_eigenval_signed();
 
         let sr_imh = sr_premax_imh.max(sl_premax_imh.max(0.0));
         let sl_imh = sr_premin_imh.min(sl_premin_imh.min(0.0));
 
         // FHLL.
-        let fhll_iph = ( sr_iph * fl_iph - sl_iph * fr_iph + sr_iph * sl_iph * ( ur_iph - ul_iph )) / ( sr_iph - sl_iph );
-        let fhll_imh = ( sr_imh * fl_imh - sl_imh * fr_imh + sr_imh * sl_imh * ( ur_imh - ul_imh )) / ( sr_imh - sl_imh );
+        let fhll_iph = ( sr_iph * f_mid - sl_iph * fr_iph + sr_iph * sl_iph * ( ur_iph - u_mid)) / ( sr_iph - sl_iph );
+        let fhll_imh = ( sr_imh * fl_imh - sl_imh * f_mid + sr_imh * sl_imh * ( u_mid - ul_imh )) / ( sr_imh - sl_imh );
 
         u1[i] = u[i] - (dt / dx) * (fhll_iph - fhll_imh);
     }
